@@ -1,6 +1,24 @@
 Code Contributors: Sibo Wang, Renchi Yang
 
-If you have any questions, feel free to contact us. Our emails are: {wangsibo.victor, anryyang}@gmail.com
+If you have any questions, feel free to contact us. Our emails are: {wangsibo.victor, anryyang}@gmail.com.
+
+Plase cite our paper if you choose to use our code. 
+
+```
+@inproceedings{WANGYXWY17,
+  author    = {Sibo Wang and
+               Renchi Yang and
+               Xiaokui Xiao and
+               Zhewei Wei and
+               Yin Yang},
+  title     = {{FORA:} Simple and Effective Approximate Single-Source Personalized
+               PageRank},
+  booktitle = {{SIGKDD} 2017},
+  pages     = {505--514},
+  year      = {2017},
+
+}
+```
 
 # Single Source Personalized PageRank
 
