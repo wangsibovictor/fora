@@ -187,7 +187,7 @@ inline void serialize_idx(){
     info_oa << rw_idx_info;
 }
 
-void single_build(const Graph& graph, int start, int end, vector<int>& rw_data, unordered_map<int, pair<int, int> >& rw_info_map, int core_id){
+void single_build(const Graph& graph, int start, int end, vector<int>& rw_data, unordered_map<int, pair<unsigned long long, unsigned long> >& rw_info_map, int core_id){
     unsigned long num_rw;
     for(int v=start; v<end; v++){
         num_rw = ceil(graph.g[v].size()*config.rmax*config.omega);
@@ -217,7 +217,7 @@ void multi_build(const Graph& graph){
     rw_idx.reserve(rw_max_size);
 
     vector< vector<int> > vec_rw(NUM_CORES+1);
-    vector< unordered_map<int, pair<int, int> > > vec_rw_info(NUM_CORES+1);
+    vector< unordered_map<int, pair<unsigned long long, unsigned long> > > vec_rw_info(NUM_CORES+1);
     std::vector< std::future<void> > futures(NUM_CORES+1);
 
     int num_node_per_core = graph.n/(NUM_CORES+1);
