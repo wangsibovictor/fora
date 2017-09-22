@@ -117,9 +117,9 @@ int main(int argc, char *argv[]) {
         else if (arg == "--epsilon") {
             config.epsilon = atof(argv[i + 1]);
             INFO(config.epsilon);
-        }//else if(arg == "--multithread"){
-            // config.multithread = true;
-        // }
+        }else if(arg == "--multithread"){
+             config.multithread = true;
+        }
         else if(arg == "--result_dir"){
             config.exe_result_dir = string(argv[i + 1]);
         }
@@ -272,7 +272,10 @@ int main(int argc, char *argv[]) {
 
         {
             Timer tm(0);
-            multi_build(graph);
+            if(config.multithread)
+                multi_build(graph);
+            else
+                build(graph);
         }
     }
     else {
