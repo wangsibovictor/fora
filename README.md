@@ -80,7 +80,7 @@ $ ./fora generate-ss-query --prefix ./data/ --dataset webstanford --query_size 1
 ```
 
 ## Indexing
-Construct index files for the graph data in parallel. (Only for FORA)
+Construct index files for the graph data using a single core. (Only for FORA)
 
 ```sh
 $ ./fora build --prefix <data-folder> --dataset <graph-name> --epsilon <relative error>
