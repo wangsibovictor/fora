@@ -5,7 +5,9 @@
 #include "graph.h"
 #include "heap.h"
 #include "config.h"
+#include "rng.h"
 #include <tuple>
+#include <boost/random.hpp>
 // #include "sfmt/SFMT.h"
 
 
@@ -26,9 +28,11 @@ struct PredResult{
 unordered_map<int, PredResult> pred_results;
 
 Fwdidx fwd_idx;
+IFwdidx ifwd_idx;
 Bwdidx bwd_idx;
 iMap<double> ppr;
 iMap<int> topk_filter;
+
 // vector< boost::atomic<double> > vec_ppr;
 iMap<int> rw_counter;
 // RwIdx rw_idx;
@@ -45,6 +49,8 @@ iMap<double> upper_bounds;
 iMap<double> lower_bounds;
 
 vector<pair<int, double>> map_lower_bounds;
+vector<double> index_use_ratio;
+
 
 // for hubppr
 vector<int> hub_fwd_idx;
@@ -55,8 +61,9 @@ vector<int> hub_fwd_idx_size;
 iMap<int> hub_fwd_idx_size_k;
 vector<int> hub_sample_number;
 iMap<int> hub_counter;
-
+PendingQueue pq;
 map<int, vector<HubBwdidxWithResidual>> hub_bwd_idx;
+vector<double> pg_values;
 
 unsigned concurrency;
 
@@ -76,21 +83,41 @@ inline uint32_t xor128(void){
     return w = w ^ (w >> 19) ^ (t ^ (t >> 8));
 }
 
+inline static unsigned long new_xshift_lrand(){
+    static rng::rng128 rng;
+    static uint64_t no_opt=0;
+    no_opt |=rng();
+    return no_opt;
+}
+
+inline static bool new_xshift_drand(){
+        return ((double)new_xshift_lrand()/(double)UINT_MAX)< config.alpha;
+}
+
 inline static unsigned long xshift_lrand(){
     return (unsigned long)xor128();
 }
 
-inline static double xshift_drand(){
-    return ((double)xshift_lrand()/(double)UINT_MAX);
+inline static bool xshift_drand(){
+    return ((double)xshift_lrand()/(double)UINT_MAX)<config.alpha;
 }
 
 inline static unsigned long lrand() {
-    return rand();
+
+    static boost::taus88 rngG(time(0));
+    return rngG();
+
+    //return rand();
     // return sfmt_genrand_uint32(&sfmtSeed);
 }
 
-inline static double drand(){
-	return rand()*1.0f/RAND_MAX;
+inline static bool drand(){
+    static boost::bernoulli_distribution <> bernoulli(config.alpha);
+    static boost::lagged_fibonacci607 rngG(time(0));
+    static boost::variate_generator<boost::lagged_fibonacci607&, boost::bernoulli_distribution<> > bernoulliRngG(rngG, bernoulli);
+
+    return bernoulliRngG();
+    //return rand()*1.0f/RAND_MAX;
     // return sfmt_genrand_real1(&sfmtSeed);
 }
 
@@ -101,7 +128,7 @@ inline int random_walk(int start, const Graph& graph){
         return start;
     }
     while (true) {
-        if (drand() < config.alpha) {
+        if (drand()) {
             return cur;
         }
         if (graph.g[cur].size()){
@@ -113,6 +140,31 @@ inline int random_walk(int start, const Graph& graph){
         }
     }
 }
+
+inline int random_walk_no_zero_hop(int start, const Graph& graph){
+    int cur = start;
+    unsigned long k;
+    if(graph.g[start].size()==0){
+        return start;
+    }
+
+    k = lrand()%graph.g[cur].size();
+    cur = graph.g[cur][ k ];
+
+    while (true) {
+        if (drand()) {
+            return cur;
+        }
+        if (graph.g[cur].size()){
+            k = lrand()%graph.g[cur].size();
+            cur = graph.g[cur][ k ];
+        }
+        else{
+            cur = start;
+        }
+    }
+}
+
 
 unsigned int SEED=1;
 inline static unsigned long lrand_thd(int core_id) {
@@ -402,10 +454,25 @@ inline void hubppr_topk_setting(int n, long long m){
 
 inline void fora_setting(int n, long long m){
     config.rmax = config.epsilon*sqrt(config.delta/3/m/log(2/config.pfail));
-    config.rmax *= config.rmax_scale;
+    if(config.opt)
+        config.rmax *= config.rmax_scale/(1-config.alpha);
+    else
+        config.rmax *=config.rmax_scale;
     // config.rmax *= config.multithread_param;
     config.omega = (2+config.epsilon)*log(2/config.pfail)/config.delta/config.epsilon/config.epsilon;
 }
+
+
+inline void fora_topk_setting(int n, long long m){
+    config.rmax = config.epsilon*sqrt(config.delta/3/m/log(2/config.pfail));
+    if(config.opt)
+        config.rmax *= sqrt( 1.0*m*config.rmax)*config.rmax_scale*3;
+    else
+        config.rmax *= sqrt( 1.0*m*config.rmax)*config.rmax_scale*3;
+    // config.rmax *= config.multithread_param;
+    config.omega = (2+config.epsilon)*log(2/config.pfail)/config.delta/config.epsilon/config.epsilon;
+}
+
 
 inline void montecarlo_setting(){
     double fwd_rw_count = 3*log(2/config.pfail)/config.epsilon/config.epsilon/config.delta;
@@ -430,6 +497,10 @@ inline void fwdpush_setting(int n, long long m){
 
 inline void generate_ss_query(int n){
     string filename = config.graph_location + "ssquery.txt";
+    if(exists_test(filename)){
+        INFO("ss query set exists");
+        return;
+    }
     ofstream queryfile(filename);
     for(int i=0; i<config.query_size; i++){
         int v = rand()%n;
@@ -453,8 +524,8 @@ void load_ss_query(vector<int>& queries){
 void compute_precision(int v){
     double precision=0.0;
     double recall=0.0;
-
-    if( exact_topk_pprs.size()>1 && exact_topk_pprs.find(v)!=exact_topk_pprs.end() ){
+    //INFO(topk_pprs.size());
+    if( exact_topk_pprs.size()>=1 && exact_topk_pprs.find(v)!=exact_topk_pprs.end() ){
 
         unordered_map<int, double> topk_map;
         for(auto &p: topk_pprs){
@@ -487,8 +558,8 @@ void compute_precision(int v){
 
         assert(exact_map.size() > 0);
         assert(topk_map.size() > 0);
-        if(exact_map.size()<=1)
-            return;
+        //if(exact_map.size()<=1)
+        //    return;
 
         recall = recall*1.0/exact_map.size();
         precision = precision*1.0/exact_map.size();
@@ -510,10 +581,7 @@ double kth_ppr(){
     static vector<double> temp_ppr;
     temp_ppr.clear();
     temp_ppr.resize(ppr.occur.m_num);
-    int nodeid;
     for(int i; i<ppr.occur.m_num; i++){
-        // if(ppr.m_data[i]>0)
-            // temp_ppr[size++] = ppr.m_data[i];
         temp_ppr[i] = ppr[ ppr.occur[i] ];
     }
 
@@ -558,7 +626,7 @@ double topk_of(vector< pair<int, double> >& top_k){
 }
 
 void compute_precision_for_dif_k(int v){
-    if( exact_topk_pprs.size()>1 && exact_topk_pprs.find(v)!=exact_topk_pprs.end() ){
+    if( exact_topk_pprs.size()>=1 && exact_topk_pprs.find(v)!=exact_topk_pprs.end() ){
         for(auto k: ks){
 
             int j=0;
@@ -592,8 +660,8 @@ void compute_precision_for_dif_k(int v){
                 }
             }
 
-            if(exact_map.size()<=1)
-                continue;
+            //if(exact_map.size()<=1)
+            //   continue;
 
             precision = precision*1.0/exact_map.size();
             recall = recall*1.0/exact_map.size();
@@ -612,7 +680,7 @@ inline void display_precision_for_dif_k(){
         cout << k << "\t";
     }
     cout << endl << "Precision:" << endl;
-    assert(pred_results[k].real_topk_source_count>0);
+    //assert(pred_results[k].real_topk_source_count>0);
     for(auto k: ks){
         cout << pred_results[k].topk_precision/pred_results[k].real_topk_source_count << "\t";
     }
@@ -889,6 +957,12 @@ void forward_local_update_linear(int s, const Graph &graph, double& rsum, double
 
     static vector<bool> idx(graph.n);
     std::fill(idx.begin(), idx.end(), false);
+
+    if(graph.g[s].size()==0){
+        fwd_idx.first.insert( s, 1);
+        rsum =0;
+        return; 
+    }
 
     double myeps = rmax;//config.rmax;
 

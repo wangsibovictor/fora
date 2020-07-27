@@ -146,25 +146,54 @@ inline void load_exact_topk_ppr(){
 
 inline string get_idx_file_name(){
     string file_name;
-    if(config.rmax_scale==1)
-        file_name = config.graph_location+"randwalks.idx";
-    else
-        file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".idx";
+    if(config.rmax_scale==1){
+        if(config.opt)
+            file_name = config.graph_location+"randwalks.idx.onehopopt";
+        else
+            file_name = config.graph_location+"randwalks.idx";
+    }
+    else{
+        if(config.opt)
+            file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".idx.onehopopt";
+        else
+            file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".idx";
+    }
     
     return file_name;
 }
 
 inline string get_idx_info_name(){
     string file_name;
-    if(config.rmax_scale==1)
-        file_name = config.graph_location+"randwalks.info";
-    else
-        file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".info";
+    if(config.rmax_scale==1){
+        if(config.opt)
+                file_name = config.graph_location+"randwalks.info.onehopopt";
+        else
+                file_name = config.graph_location+"randwalks.info";
+    }
+    else{
+        if(config.opt)
+                file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".info.onehopopt";
+        else
+                file_name = config.graph_location+"randwalks."+to_string(config.rmax_scale)+".info";
+        
+    }
     return file_name;   
 }
 
+
+
+bool sort_by_sec_descending(const std::pair<int, int> &left, const std::pair<int, int> &right) 
+{
+         return ( left.second > right.second || 
+               ( !( right.second > left.second ) && left.first < right.first ) );
+}
+
+
+
+
 inline void deserialize_idx(){
     string file_name = get_idx_file_name();
+    INFO("Index file name:",file_name);
     assert_file_exist("index file", file_name);
     std::ifstream ifs(file_name);
     boost::archive::binary_iarchive ia(ifs);
@@ -279,27 +308,51 @@ void build(const Graph& graph){
     
     fora_setting(graph.n, graph.m);
 
+    fwd_idx.first.nil = -1;
+    fwd_idx.second.nil =-1;
+    fwd_idx.first.initialize(graph.n);
+    fwd_idx.second.initialize(graph.n);
+
     // rw_idx = RwIdx( graph.n, vector<int>() );
     rw_idx_info.resize(graph.n);
 
-    unsigned long long rw_max_size = graph.m*config.rmax*config.omega;
-    INFO(rw_max_size, rw_idx.max_size());
-
-    rw_idx.reserve(rw_max_size);
+    long long tuned_index_size =0;
+    long long original_index_size =0;
 
     {
-        INFO("rand-walking...");
         Timer tm(1);
         unsigned long num_rw;
         for(int source=0; source<graph.n; source++){ //from each node, do rand-walks
-            num_rw = ceil(graph.g[source].size()*config.rmax*config.omega);
-            rw_idx_info[source] = MP(rw_idx.size(), num_rw);
-            for(unsigned long i=0; i<num_rw; i++){ //for each node, do some rand-walks
-                int destination = random_walk(source, graph);
+        
+            original_index_size += ceil(graph.g[source].size()*config.rmax*config.omega);
+            if(config.opt)
+                num_rw = ceil(graph.g[source].size()*config.rmax*(1-config.alpha)*config.omega);
+            else
+                num_rw = ceil(graph.g[source].size()*config.rmax*config.omega);
+            rw_idx_info[source] = MP(tuned_index_size, num_rw);
+            tuned_index_size += num_rw;
+        }
+    }
+    INFO(tuned_index_size);
+
+    rw_idx.reserve(tuned_index_size);
+
+    {
+        INFO("rand-walking...");
+        INFO(config.rmax, config.omega, config.rmax*config.omega);
+        Timer tm(1);
+        for(int source=0; source<graph.n; source++){ //from each node, do rand-walks
+            for(unsigned long i=0; i<rw_idx_info[source].second; i++){ //for each node, do some rand-walks
+                int destination = 0;
+                if(config.opt)
+                    destination = random_walk_no_zero_hop(source, graph);
+                else
+                    destination = random_walk(source, graph);
                 // rw_idx[source].push_back(destination);
                 rw_idx.push_back(destination);
             }
         }
+        INFO(original_index_size, tuned_index_size, original_index_size*1.0/tuned_index_size);
     }
 
     {

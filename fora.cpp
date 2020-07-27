@@ -128,11 +128,11 @@ int main(int argc, char *argv[]) {
         }
         else if(arg == "--with_idx"){
             config.with_rw_idx = true;
-        }
-        else if(arg == "--rmax_scale"){
+        }else if(arg == "--rmax_scale"){
             config.rmax_scale = atof(argv[i+1]);
-        }
-        else if (arg == "--query_size"){
+        }else if(arg == "--force-rebuild"){
+            config.force_rebuild = true;
+        }else if (arg == "--query_size"){
             config.query_size = atoi(argv[i+1]);
         }else if(arg == "--hub_space"){
             config.hub_space_consum = atoi(argv[i+1]);
@@ -147,6 +147,10 @@ int main(int argc, char *argv[]) {
         }
         else if (arg == "--prefix" || arg == "--dataset") {
             // pass
+        }else if(arg == "--opt"){
+            config.opt = 1;
+        }else if(arg == "--balanced"){
+            config.balanced = true;
         }
 
         else if (arg.substr(0, 2) == "--") {
@@ -174,7 +178,7 @@ int main(int argc, char *argv[]) {
         INFO("load graph finish");
         init_parameter(config, graph);
    
-        INFO("finihsed initing parameters");
+        INFO("finished initing parameters");
         INFO(graph.n, graph.m);
 
         // if(config.multithread){
@@ -183,17 +187,15 @@ int main(int argc, char *argv[]) {
 
         if(config.with_rw_idx)
             deserialize_idx();
-
         query(graph);
-    }
-    else if (config.action == GEN_SS_QUERY){
+        INFO("finished query");
+    }else if (config.action == GEN_SS_QUERY){
         config.graph_location = config.get_graph_folder();
         Graph graph(config.graph_location);
         INFO(graph.n, graph.m);
 
         generate_ss_query(graph.n);
-    }
-    else if (config.action == TOPK){
+    }else if (config.action == TOPK){
         auto f = find(possibleAlgo.begin(), possibleAlgo.end(), config.algo);
         assert (f != possibleAlgo.end());
         if(f == possibleAlgo.end()){
@@ -220,8 +222,7 @@ int main(int argc, char *argv[]) {
             deserialize_idx();
             
         topk(graph);
-    }
-    else if(config.action == BATCH_TOPK){
+    }else if(config.action == BATCH_TOPK){
         auto f = find(possibleAlgo.begin(), possibleAlgo.end(), config.algo);
         assert(f != possibleAlgo.end());
         if(f == possibleAlgo.end()){
@@ -229,8 +230,6 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         
-        load_exact_topk_ppr();
-
         config.graph_location = config.get_graph_folder();
         Graph graph(config.graph_location);
         INFO("load graph finish");
@@ -246,8 +245,7 @@ int main(int argc, char *argv[]) {
             deserialize_idx();
             
         batch_topk(graph);
-    }
-    else if (config.action == GEN_EXACT_TOPK){
+    }else if (config.action == GEN_EXACT_TOPK){
         config.graph_location = config.get_graph_folder();
         Graph graph(config.graph_location);
         INFO("load graph finish");
@@ -260,13 +258,13 @@ int main(int argc, char *argv[]) {
         INFO(graph.n, graph.m);
 
         gen_exact_topk(graph);
-    }
-    else if(config.action == BUILD){
+    }else if(config.action == BUILD){
         config.graph_location = config.get_graph_folder();
         Graph graph(config.graph_location);
         INFO("load graph finish");
         init_parameter(config, graph);
-   
+
+
         INFO("finihsed initing parameters");
         INFO(graph.n, graph.m);
 
@@ -277,12 +275,10 @@ int main(int argc, char *argv[]) {
             else
                 build(graph);
         }
-    }
-    else {
+    }else{
         cerr << "sub command not regoznized" << endl;
         exit(1);
     }
-
     Timer::show();
     if(config.action == QUERY || config.action == TOPK){
         Counter::show();

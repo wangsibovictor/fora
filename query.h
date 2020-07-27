@@ -326,6 +326,316 @@ void compute_ppr_with_fwdidx(const Graph& graph, double check_rsum){
     }
 }
 
+
+
+
+
+
+void compute_ppr_with_fwdidx_opt(const Graph& graph, double check_rsum){
+    ppr.reset_zero_values();
+
+    int node_id;
+    double reserve;
+    for(long i=0; i< fwd_idx.first.occur.m_num; i++){
+        node_id = fwd_idx.first.occur[i];
+        reserve = fwd_idx.first[ node_id ];
+        ppr[node_id] = reserve;
+    }
+
+    // INFO("rsum is:", check_rsum);
+    if(check_rsum == 0.0)
+        return;
+
+    check_rsum*=(1-config.alpha);
+    unsigned long long num_random_walk = config.omega*check_rsum;
+    // INFO(num_random_walk);
+    //num_total_rw += num_random_walk;
+
+    {
+        Timer timer(RONDOM_WALK); //both rand-walk and source distribution are related with num_random_walk
+        //Timer tm(SOURCE_DIST);
+        if(config.with_rw_idx){
+            fwd_idx.second.occur.Sort();
+            for(long i=0; i < fwd_idx.second.occur.m_num; i++){
+                int source = fwd_idx.second.occur[i];
+                //double residual = fwd_idx.second[source];
+                if(!fwd_idx.second.exist(source)) continue;
+                ppr[source]+=fwd_idx.second[source]*config.alpha;
+                double residual = fwd_idx.second[source]*(1-config.alpha);
+
+
+                unsigned long num_s_rw = ceil(residual/check_rsum*num_random_walk);
+                double a_s = residual/check_rsum*num_random_walk/num_s_rw;
+
+                double ppr_incre = a_s*check_rsum/num_random_walk;
+                
+                num_total_rw += num_s_rw;
+                
+                //for each source node, get rand walk destinations from previously generated idx or online rand walks
+                if(num_s_rw > rw_idx_info[source].second){ //if we need more destinations than that in idx, rand walk online
+                    for(unsigned long k=0; k<rw_idx_info[source].second; k++){
+                        int des = rw_idx[rw_idx_info[source].first + k];
+                        ppr[des] += ppr_incre;
+                    }
+                    num_hit_idx += rw_idx_info[source].second;
+
+                    for(unsigned long j=0; j < num_s_rw-rw_idx_info[source].second; j++){ //rand walk online
+                        int des = random_walk_no_zero_hop(source, graph);
+                        ppr[des] += ppr_incre;
+                    }
+                }else{ // using previously generated idx is enough
+                    for(unsigned long k=0; k<num_s_rw; k++){
+                        int des = rw_idx[rw_idx_info[source].first + k];
+                        ppr[des] += ppr_incre;
+                    }
+                    num_hit_idx += num_s_rw;
+                }
+            }
+        }
+        else{ //rand walk online
+            for(long i=0; i < fwd_idx.second.occur.m_num; i++){
+                int source = fwd_idx.second.occur[i];
+                if(!fwd_idx.second.exist(source)) continue;
+                ppr[source]+=fwd_idx.second[source]*config.alpha;
+                double residual = fwd_idx.second[source]*(1-config.alpha);
+                unsigned long num_s_rw = ceil(residual/check_rsum*num_random_walk);
+                double a_s = residual/check_rsum*num_random_walk/num_s_rw;
+
+                double ppr_incre = a_s*check_rsum/num_random_walk;
+                num_total_rw += num_s_rw;
+                for(unsigned long j=0; j<num_s_rw; j++){
+                    int des = random_walk_no_zero_hop(source, graph);
+                    ppr[des] += ppr_incre;
+                }
+            }
+        }
+    }
+}
+
+
+
+
+/*
+void compute_ppr_with_fwdidx_opt_old(const Graph& graph, double& check_rsum){
+    ppr.reset_zero_values();
+    memset(destination_count, 0, graph.n*sizeof(int));
+    int node_id;
+    double reserve;
+    double residue;
+    if(check_rsum == 0.0)
+        return;
+
+
+    // INFO("rsum is:", check_rsum);
+
+    check_rsum*=(1-config.alpha);
+    unsigned long long num_random_walk = ceil(config.omega*check_rsum);
+    INFO(num_random_walk);
+    unsigned long long real_num_rand_walk = num_total_rw;
+    //num_total_rw += num_random_walk;
+
+    {
+        Timer timer(RONDOM_WALK); //both rand-walk and source distribution are related with num_random_walk
+        //Timer tm(SOURCE_DIST);
+        if(config.with_rw_idx){
+            fwd_idx.second.occur.Sort();
+            INFO(fwd_idx.second.occur.m_num);
+            for(int i=0; i < fwd_idx.second.occur.m_num; i++){
+                int source = fwd_idx.second.occur[i];
+                if(fwd_idx.first.exist(source))
+                    ppr[source]+= fwd_idx.first[source];
+                if(!fwd_idx.second.exist(source)) continue;
+                //int source = i;
+                //int source = fwd_idx.second.occur[i];
+                ppr[source]+=fwd_idx.second[source]*config.alpha;
+                double residual = fwd_idx.second[source]*(1-config.alpha);
+      
+                //INFO(residual, pg_values[source]*config.rmax, residual/(pg_values[source]*config.rmax) );
+
+                unsigned long num_s_rw = ceil(residual*config.omega);
+                unsigned long num_s_int_rw = floor(residual*config.omega);
+                num_total_rw += num_s_rw;
+                
+                //for each source node, get rand walk destinations from previously generated idx or online rand walks
+                if(num_s_rw > rw_idx_info[source].second){ 
+                    //if we need more destinations than that in idx, rand walk online
+                    unsigned long k=0;
+                    for(; k<rw_idx_info[source].second; k++){
+                        int des = rw_idx[rw_idx_info[source].first + k];
+                        destination_count[des]++;
+                    }
+                    num_hit_idx += rw_idx_info[source].second;
+
+                    for(; k < num_s_int_rw; k++){ //rand walk online
+                        int des = random_walk_no_zero_hop(source, graph);
+                        destination_count[des]++;
+                    }
+                    if(num_s_int_rw< num_s_rw){
+                        int des = random_walk_no_zero_hop(source, graph);
+                        double ppr_incre=(1.0*residual*config.omega - num_s_int_rw*1.0)/config.omega;
+                        ppr[des] += ppr_incre;
+                    }
+                }else{ 
+                    // using previously generated idx is enough
+                    unsigned long k=0;
+                    for(; k<num_s_int_rw; k++){
+                        int des = rw_idx[rw_idx_info[source].first + k];
+                        destination_count[des] ++;
+                    }
+                    if(num_s_int_rw < num_s_rw){
+                        int des = rw_idx[rw_idx_info[source].first + k];
+                        double ppr_incre=(1.0*residual*config.omega - num_s_int_rw*1.0)/config.omega;
+                        ppr[des] +=ppr_incre;
+                    }
+                    num_hit_idx += num_s_rw;
+                }
+            }
+            for(long i=0; i< graph.n; i++){
+                ppr[i]+= 1.0*destination_count[i]/config.omega;;
+            }
+        }
+        else{ //rand walk online
+            for(long i=0; i < fwd_idx.second.occur.m_num; i++){
+                int source = fwd_idx.second.occur[i];
+                double residual = fwd_idx.second[source];
+                unsigned long num_s_rw = ceil(residual/check_rsum*num_random_walk);
+                double a_s = residual/check_rsum*num_random_walk/num_s_rw;
+
+                double ppr_incre = a_s*check_rsum/num_random_walk;
+                
+                num_total_rw += num_s_rw;
+                for(unsigned long j=0; j<num_s_rw; j++){
+                    int des = random_walk(source, graph);
+                    ppr[des] += ppr_incre;
+                }
+            }
+        }
+        real_num_rand_walk = num_total_rw - real_num_rand_walk;
+        INFO(real_num_rand_walk, num_random_walk);
+    }
+}*/
+
+
+
+
+void compute_ppr_with_fwdidx_topk(const Graph& graph, double check_rsum){
+    // ppr.clean();
+    // // ppr.reset_zero_values();
+
+    // int node_id;
+    // double reserve;
+    // for(long i=0; i< fwd_idx.first.occur.m_num; i++){
+    //     node_id = fwd_idx.first.occur[i];
+    //     reserve = fwd_idx.first[ node_id ];
+    //     ppr.insert(node_id, reserve);
+    //     // ppr[node_id] = reserve;
+    // }
+    compute_ppr_with_reserve();
+
+    // INFO("rsum is:", check_rsum);
+    if(check_rsum == 0.0)
+        return;
+
+    check_rsum*= (1-config.alpha);
+    unsigned long long num_random_walk = config.omega*check_rsum;
+    // INFO(num_random_walk);
+    //num_total_rw += num_random_walk;
+    {
+        Timer timer(RONDOM_WALK); //both rand-walk and source distribution are related with num_random_walk
+        //Timer tm(SOURCE_DIST);
+        int source;
+        double residual;
+        unsigned long num_s_rw;
+        double a_s;
+        double ppr_incre;
+        unsigned long num_used_idx;
+        unsigned long num_remaining_idx;
+        int des;
+        //INFO(num_random_walk, fwd_idx.second.occur.m_num);
+        if(config.with_rw_idx){ //rand walk with previously generated idx
+            fwd_idx.second.occur.Sort();
+            //for each source node, get rand walk destinations from previously generated idx or online rand walks
+            for(long i=0; i < fwd_idx.second.occur.m_num; i++){
+                source = fwd_idx.second.occur[i];
+                residual = fwd_idx.second[source];
+                if(ppr.exist(source)){
+                    ppr[source] += residual*config.alpha;
+                }else{
+                    ppr.insert(source, residual*config.alpha);
+                }
+
+                residual*=(1-config.alpha);
+                num_s_rw = ceil(residual*config.omega);
+                a_s = residual*config.omega/num_s_rw;
+
+                ppr_incre = a_s/config.omega;
+
+                num_total_rw += num_s_rw;
+
+                num_used_idx = rw_counter[source];
+                num_remaining_idx = rw_idx_info[source].second-num_used_idx;
+                
+                if(num_s_rw <= num_remaining_idx){
+                    // using previously generated idx is enough
+                    for(unsigned long k=0; k<num_s_rw; k++){
+                        des = rw_idx[ rw_idx_info[source].first+ num_used_idx + k ];
+                        if(!ppr.exist(des))
+                            ppr.insert(des, ppr_incre);
+                        else
+                            ppr[des] += ppr_incre;
+                    }
+
+                    rw_counter[source] = num_used_idx + num_s_rw;
+
+                    num_hit_idx += num_s_rw;
+                }
+                else{
+                    //we need more destinations than that in idx, rand walk online
+                    for(unsigned long k=0; k<num_remaining_idx; k++){
+                        des = rw_idx[ rw_idx_info[source].first + num_used_idx + k ];
+                        if(!ppr.exist(des))
+                            ppr.insert(des, ppr_incre);
+                        else
+                            ppr[des] += ppr_incre;
+                    }
+
+                    num_hit_idx += num_remaining_idx;
+                    rw_counter[source] = num_used_idx + num_remaining_idx;
+
+                    for(unsigned long j=0; j < num_s_rw-num_remaining_idx; j++){ //rand walk online
+                        des = random_walk_no_zero_hop(source, graph);
+                        if(!ppr.exist(des))
+                            ppr.insert(des, ppr_incre);
+                        else
+                            ppr[des] += ppr_incre;
+                    }
+                }
+            }
+        }
+        else{ //rand walk online
+            for(long i=0; i < fwd_idx.second.occur.m_num; i++){
+                source = fwd_idx.second.occur[i];
+                residual = fwd_idx.second[source];
+                num_s_rw = ceil(residual*config.omega);
+                a_s = residual*config.omega/num_s_rw;
+
+                ppr_incre = a_s/config.omega;
+                num_total_rw += num_s_rw;
+
+                for(unsigned long j=0; j<num_s_rw; j++){
+                    des = random_walk(source, graph);
+                    if(!ppr.exist(des))
+                        ppr.insert(des, ppr_incre);
+                    else
+                        ppr[des] += ppr_incre;
+                }
+            }
+        }
+    }
+
+}
+
+
 void compute_ppr_with_fwdidx_topk_with_bound(const Graph& graph, double check_rsum){
     compute_ppr_with_reserve();
 
@@ -341,11 +651,12 @@ void compute_ppr_with_fwdidx_topk_with_bound(const Graph& graph, double check_rs
         //Timer tm(SOURCE_DIST);
         if(config.with_rw_idx){ //rand walk with previously generated idx
             fwd_idx.second.occur.Sort();
+            INFO(fwd_idx.second.occur.m_num);
             //for each source node, get rand walk destinations from previously generated idx or online rand walks
             for(long i=0; i < fwd_idx.second.occur.m_num; i++){
                 int source = fwd_idx.second.occur[i];
                 double residual = fwd_idx.second[source];
-                long num_s_rw = ceil(residual/check_rsum*num_random_walk);
+                long num_s_rw = ceil(residual*config.omega);
                 double a_s = residual/check_rsum*num_random_walk/num_s_rw;
 
                 double ppr_incre = a_s*check_rsum/num_random_walk;
@@ -438,17 +749,157 @@ void compute_ppr_with_fwdidx_topk_with_bound(const Graph& graph, double check_rs
     }
 }
 
+
+void icompute_ppr_with_fwdidx(const Graph& graph, double check_rsum){
+    //ppr.clean();
+    int node_id;
+
+    // INFO("rsum is:", check_rsum);
+    if(check_rsum == 0.0)
+        return;
+
+    INFO("sampling random walk");
+
+    {
+        Timer timer(RONDOM_WALK); //both rand-walk and source distribution are related with num_random_walk
+        //Timer tm(SOURCE_DIST);
+        ifwd_idx.occur.Sort();
+        if(config.with_rw_idx){
+
+            INFO("Using index");
+            INFO(ifwd_idx.occur.m_num);
+            for(long i=0; i < ifwd_idx.occur.m_num; i++){
+                int source = ifwd_idx.occur[i];
+                unsigned long num_rw = ifwd_idx[source].second;
+                if(num_rw == 0) continue;
+
+                num_total_rw += num_rw;
+                
+                num_rw = min(num_rw, rw_idx_info[source].second);
+
+                unsigned long start = rw_idx_info[source].first;
+
+                for(unsigned long k=start; k<start+num_rw; k++){
+                    int des = rw_idx[k];
+                    if(!ifwd_idx.exist(des)){
+                        ifwd_idx.insert(des, make_pair(1,0));
+                    }else{
+                        ifwd_idx[des].first++;
+                    }
+                }
+                num_hit_idx += num_rw;
+
+                    /*
+                    for(unsigned long j=0; j < num_rw-rw_idx_info[source].second; j++){ //rand walk online
+                        int des = random_walk(source, graph);
+
+                        if(ifwd_idx.first.exist(des)){
+                            ifwd_idx.first[des]++;
+                        }else{
+                            ifwd_idx.first.insert(des, 1);
+                        }
+                    }*/
+            }
+        }else{
+            INFO("random walk online");
+            for(long i=0; i < ifwd_idx.occur.m_num; i++){
+                int source = ifwd_idx.occur[i];
+                long num_s_rw = ifwd_idx[source].second;
+                for(unsigned long j=0; j<num_s_rw; ++j){
+                    int des = random_walk(source, graph);
+                    if(ifwd_idx.exist(des)){
+                        ifwd_idx[des].first++;
+                    }else{
+                        ifwd_idx.insert(des, make_pair(1, 0));
+                    }
+                }
+            }
+        }
+    }
+}
+
+double total_rsum = 0.0;
+double random_walk_time = 0.0000004;
+double random_walk_index_time = random_walk_time/140;
+double previous_rmax = 0;
+
+double estimated_random_walk_cost(double rsum, double rmax){
+    double estimated_random_walk_cost = 0.0;
+    if(!config.with_rw_idx){
+        estimated_random_walk_cost = config.omega*rsum*(1-config.alpha)*random_walk_time;
+    }else{
+        if(rmax >= config.rmax){
+            estimated_random_walk_cost = config.omega*rsum*(1-config.alpha)*random_walk_time;
+        }else{
+            estimated_random_walk_cost = config.omega*rsum*(1-config.alpha)*random_walk_index_time;
+        }
+    }
+    INFO(rmax, config.rmax, estimated_random_walk_cost);
+    return estimated_random_walk_cost;
+}
+//map<double, int> count_ratio;
 void fora_query_basic(int v, const Graph& graph){
     Timer timer(FORA_QUERY);
     double rsum = 1.0;
 
     {
         Timer timer(FWD_LU);
-        forward_local_update_linear(v, graph, rsum, config.rmax); //forward propagation, obtain reserve and residual
+
+        if(config.balanced){
+            static vector<int> forward_from;
+            forward_from.clear();
+            forward_from.reserve(graph.n);
+            forward_from.push_back(v);
+
+            fwd_idx.first.clean();  //reserve
+            fwd_idx.second.clean();  //residual
+            fwd_idx.second.insert( v, rsum );
+
+            const static double min_delta = 1.0 / graph.n;
+
+            const static double lowest_delta_rmax = config.opt?config.epsilon*sqrt(min_delta/3/graph.m/log(2/config.pfail))/(1-config.alpha):config.epsilon*sqrt(min_delta/3/graph.m/log(2/config.pfail));
+            double used_time = 0;
+            double rmax = 0;
+            rmax = config.rmax*8;
+            double random_walk_cost = 0;
+            INFO(graph.g[v].size()>0);
+            if(graph.g[v].size()>0){
+                while(estimated_random_walk_cost(rsum, rmax)> used_time){
+                    INFO(config.omega*rsum*random_walk_time, used_time);
+                    std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+                    forward_local_update_linear_topk( v, graph, rsum, rmax, lowest_delta_rmax, forward_from ); 
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - startTime).count();
+                    INFO(rsum);
+                    used_time +=duration/TIMES_PER_SEC;
+                    double used_time_this_iteration = duration/TIMES_PER_SEC;
+                    INFO(used_time_this_iteration);
+                    rmax /=2;
+                }
+                rmax*=2;
+                INFO("Adpaitve total forward push time: ", used_time);
+                INFO(config.rmax, rmax, config.rmax/rmax);
+                //count_ratio[config.rmax/rmax]++;
+            }else{
+                forward_local_update_linear(v, graph, rsum, config.rmax);
+            }
+        }else{
+            forward_local_update_linear(v, graph, rsum, config.rmax); //forward propagation, obtain reserve and residual
+        }
+        //forward_local_update_linear_with_prune(v, graph, rsum, config.rmax); 
     }
 
-    // compute_ppr_with_fwdidx(graph);
-    compute_ppr_with_fwdidx(graph, rsum);
+    INFO(config.omega, config.omega*rsum, rsum);
+    std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+    //return;
+    if(config.opt){
+        compute_ppr_with_fwdidx_opt(graph, rsum);
+        total_rsum+= rsum*(1-config.alpha);
+    }else{
+        compute_ppr_with_fwdidx(graph, rsum);
+        total_rsum+= rsum*(1-config.alpha);
+    }
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - startTime).count();
+    INFO("Total random walk time: ", duration/TIMES_PER_SEC);
 
 #ifdef CHECK_PPR_VALUES
     display_ppr();
@@ -495,16 +946,105 @@ void fora_query_topk_with_bound(int v, const Graph& graph){
 
         {
             Timer timer(FWD_LU);
-            forward_local_update_linear_topk( v, graph, rsum, config.rmax, lowest_delta_rmax, forward_from ); //forward propagation, obtain reserve and residual
+
+            if(graph.g[v].size()==0){
+                rsum = 0.0;
+                fwd_idx.first.insert(v, 1);
+                compute_ppr_with_reserve();
+                return;
+            }else{
+                forward_local_update_linear_topk( v, graph, rsum, config.rmax, lowest_delta_rmax, forward_from ); //forward propagation, obtain reserve and residual
+            }
         }
 
         compute_ppr_with_fwdidx_topk_with_bound(graph, rsum);
-        if(if_stop() || config.delta <= min_delta){
-            break;
-        }else
-            config.delta = max( min_delta, config.delta/2.0 );  // otherwise, reduce delta to delta/2
+        {
+            Timer timer(STOP_CHECK);
+            if(if_stop() || config.delta <= min_delta){
+                break;
+            }else
+                config.delta = max( min_delta, config.delta/2.0 );  // otherwise, reduce delta to delta/2
+        }
     }
 }
+
+
+void fora_query_topk_new(int v, const Graph& graph ){
+    Timer timer(0);
+    const static double min_delta = 1.0 / graph.n;
+    if(config.k ==0) config.k = 500;
+    const static double init_delta = 1.0/config.k/10;//(1.0-config.ppr_decay_alpha)/pow(500, config.ppr_decay_alpha) / pow(graph.n, 1-config.ppr_decay_alpha);
+    const static double new_pfail = 1.0 / graph.n / graph.n;
+
+    config.pfail = new_pfail;  // log(1/pfail) -> log(1*n/pfail)
+    config.delta = init_delta;
+
+    const static double lowest_delta_rmax = config.epsilon*sqrt(min_delta/3/graph.m/log(2/new_pfail));
+
+    double rsum = 1.0;
+
+    static vector<int> forward_from;
+    forward_from.clear();
+    forward_from.reserve(graph.n);
+    forward_from.push_back(v);
+
+    fwd_idx.first.clean();  //reserve
+    fwd_idx.second.clean();  //residual
+    fwd_idx.second.insert( v, rsum );
+
+    
+
+    if(config.with_rw_idx)
+        rw_counter.reset_zero_values(); //store the pointers of each node's used rand-walk idxs 
+
+    // for delta: try value from 1/4 to 1/n
+    while( config.delta >= min_delta ){
+        fora_topk_setting(graph.n, graph.m);
+        num_iter_topk++;
+        {
+            Timer timer(FWD_LU);
+            //INFO(config.rmax, graph.m*config.rmax, config.omega);
+            if(graph.g[v].size()==0){
+                rsum = 0.0;
+                fwd_idx.first.insert(v, 1);
+                compute_ppr_with_reserve();
+                return;
+            }else{
+                forward_local_update_linear_topk( v, graph, rsum, config.rmax, lowest_delta_rmax, forward_from ); //forward propagation, obtain reserve and residual
+            }
+        }
+
+        //i_destination_count.clean();
+        //compute_ppr_with_fwdidx_new(graph, rsum);
+        //compute_ppr_with_fwdidx_topk(graph, rsum);
+        compute_ppr_with_fwdidx_topk(graph, rsum);
+
+        
+        {
+            double kth_ppr_score = kth_ppr();
+
+            //topk_ppr();
+
+            //double kth_ppr_score = topk_pprs[config.k-1].second;
+            if( kth_ppr_score >= (1+config.epsilon)*config.delta || config.delta <= min_delta ){  // once k-th ppr value in top-k list >= (1+epsilon)*delta, terminate
+                INFO(kth_ppr_score, config.delta, rsum);
+                break;
+            }
+            else{
+                /*int j=0;
+                for(; j<config.k; j++){
+                    //INFO(topk_pprs[j].second, (1+config.epsilon)*config.delta);
+                    if(topk_pprs[j].second<(1+config.epsilon)*config.delta)
+                        break;
+                }
+                INFO("Our current accurate top-j", j);*/
+                config.delta = max( min_delta, config.delta/4.0 );  // otherwise, reduce delta to delta/4
+            }
+        }
+    }
+}
+
+
 
 iMap<int> updated_pprs;
 void hubppr_query_topk_martingale(int s, const Graph& graph) {
@@ -607,7 +1147,11 @@ void get_topk(int v, Graph &graph){
         topk_ppr();
     }
     else if(config.algo == FORA){
-        fora_query_topk_with_bound(v, graph);
+        //fora_query_topk_new(v, graph);
+        if(config.opt)
+            fora_query_topk_new(v, graph);
+        else
+            fora_query_topk_with_bound(v, graph);
         topk_ppr();
     }
     else if(config.algo == FWDPUSH){
@@ -703,7 +1247,11 @@ void gen_exact_topk(const Graph& graph){
     unsigned int query_size = queries.size();
     query_size = min( query_size, config.query_size );
     INFO(query_size);
-
+    string exact_top_file_str = get_exact_topk_ppr_file();
+    if(exists_test(exact_top_file_str)){
+        INFO("exact top k exists");
+        return;
+    }
     assert(config.k < graph.n-1);
     assert(config.k > 1);
     INFO(config.k);
@@ -793,13 +1341,22 @@ void topk(Graph& graph){
 
     used_counter = 0; 
     if(config.algo == FORA){
+        fwd_idx.first.nil = -9;
         fwd_idx.first.initialize(graph.n);
+        fwd_idx.second.nil = -9;
         fwd_idx.second.initialize(graph.n);
+        rw_counter.nil =-9;
         rw_counter.init_keys(graph.n);
+        upper_bounds.nil = -9;
         upper_bounds.init_keys(graph.n);
+        lower_bounds.nil = -9;
         lower_bounds.init_keys(graph.n);
+        ppr.nil = -9;
         ppr.initialize(graph.n);
+        topk_filter.nil = -9;
         topk_filter.initialize(graph.n);
+        //i_destination_count.nil = -9; 
+        //i_destination_count.initialize(graph.n);
     }
     else if(config.algo == MC){
         rw_counter.initialize(graph.n);
@@ -864,15 +1421,10 @@ void query(Graph& graph){
     INFO(query_size);
     int used_counter=0;
 
-    // assert(config.rw_cost_ratio >= 0);
-    // INFO(config.rw_cost_ratio); 
-
     assert(config.rmax_scale >= 0);
     INFO(config.rmax_scale);
 
-    // ppr.initialize(graph.n);
     ppr.init_keys(graph.n);
-    // sfmt_init_gen_rand(&sfmtSeed , 95082);
 
     if(config.algo == BIPPR){ //bippr
         bippr_setting(graph.n, graph.m);
@@ -909,19 +1461,24 @@ void query(Graph& graph){
         fora_setting(graph.n, graph.m);
         display_setting();
         used_counter = FORA_QUERY;
-
+        fwd_idx.first.nil = -1;
+        fwd_idx.second.nil =-1;
         fwd_idx.first.initialize(graph.n);
         fwd_idx.second.initialize(graph.n);
 
-        // if(config.multithread)
-        //     vec_ppr.resize(graph.n);
 
         // rw_counter.initialize(graph.n);
         for(int i=0; i<query_size; i++){
-            cout << i+1 <<". source node:" << queries[i] << endl;
-            fora_query_basic(queries[i], graph);
+            int source =  queries[i];
+            cout << i+1 <<". source node:" << source << endl;
+            fora_query_basic(source, graph);
             split_line();
         }
+        double avg_rsum = total_rsum/query_size;
+        INFO(avg_rsum*config.omega);
+        /*for(auto x: count_ratio){
+            INFO(x.first, x.second);
+        }*/
     }else if(config.algo == MC){ //mc
         montecarlo_setting();
         display_setting();
@@ -964,22 +1521,31 @@ void batch_topk(Graph& graph){
     unsigned int query_size = queries.size();
     query_size = min( query_size, config.query_size );
     int used_counter=0;
-
     assert(config.k < graph.n-1);
     assert(config.k > 1);
     INFO(config.k);
 
     split_line();
+    load_exact_topk_ppr();
 
     used_counter = 0; 
     if(config.algo == FORA){
+        fwd_idx.first.nil = -9;
         fwd_idx.first.initialize(graph.n);
+        fwd_idx.second.nil = -9;
         fwd_idx.second.initialize(graph.n);
+        rw_counter.nil =-9;
         rw_counter.init_keys(graph.n);
+        upper_bounds.nil = -9;
         upper_bounds.init_keys(graph.n);
+        lower_bounds.nil = -9;
         lower_bounds.init_keys(graph.n);
+        ppr.nil = -9;
         ppr.initialize(graph.n);
+        topk_filter.nil = -9;
         topk_filter.initialize(graph.n);
+        //i_destination_count.nil = -9; 
+        //i_destination_count.initialize(graph.n);
     }
     else if(config.algo == MC){
         rw_counter.initialize(graph.n);

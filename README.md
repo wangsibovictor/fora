@@ -2,7 +2,7 @@ Code Contributors: Sibo Wang, Renchi Yang
 
 If you have any questions, feel free to contact us. Our emails are: {wangsibo.victor, anryyang}@gmail.com.
 
-Plase cite our paper if you choose to use our code. 
+Plase cite our papers if you choose to use our code.
 
 ```
 @inproceedings{WANGYXWY17,
@@ -16,7 +16,24 @@ Plase cite our paper if you choose to use our code.
   booktitle = {{SIGKDD} 2017},
   pages     = {505--514},
   year      = {2017},
+}
 
+@article{WANGYWXWLY019,
+  author    = {Sibo Wang and
+               Renchi Yang and
+               Runhui Wang and
+               Xiaokui Xiao and
+               Zhewei Wei and
+               Wenqing Lin and
+               Yin Yang and
+               Nan Tang},
+  title     = {Efficient Algorithms for Approximate Single-Source Personalized PageRank
+               Queries},
+  journal   = {{ACM} Trans. Database Syst.},
+  volume    = {44},
+  number    = {4},
+  pages     = {18:1--18:37},
+  year      = {2019},
 }
 ```
 
@@ -62,6 +79,8 @@ $ make
     - --hub_space \<hubppr oracle space-consumption\>
     - --exact_ppr_path \<directory to place generated ground truth\>
     - --result_dir \<directory to place results\>
+    - --balanced: a balance strategy is used to automatically decide R_max for FORA.
+    - --opt:  optimization techniques for whole-graph SSPPR and top-k queries are applied.
 
 ## Data
 The example data format is in `./data/webstanford/` folder. The data for DBLP, Pokec, Livejournal, Twitter are not included here for size limitation reason. You can find them online.
@@ -106,6 +125,9 @@ $ ./fora query --algo <algo-name> --prefix <data-folder> --dataset <graph-name> 
 // without index
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20
 
+// without index, balance strategy and optimization technique
+$ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --balanced --opt
+
 // with index
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --with_idx
 ```
@@ -122,6 +144,9 @@ $ ./fora topk --algo <algo-name> --prefix <data-folder> --dataset <graph-name> -
 ```sh
 // without index
 $ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500
+
+// without index and optimization technique
+$ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500 --opt
 
 // with index
 $ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500 --with_idx

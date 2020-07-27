@@ -304,7 +304,7 @@ struct iMap
         occur.re_allocate(n);
         occur.clean();
         m_num = n;
-        nil = -9;
+        //nil = -9;
         if ( m_data != NULL )
             delete[] m_data;
         m_data = new _T[m_num];
@@ -327,7 +327,7 @@ struct iMap
         occur.re_allocate(n);
         occur.clean();
         m_num = n;
-        nil = -9;
+        //nil = -9;
         if ( m_data != NULL )
             delete[] m_data;
         m_data = new _T[m_num];
@@ -423,6 +423,50 @@ struct iMap
     }
     //close range check when release!!!!!!!!!!!!!!!!!!!!    
 };
+
+
+
+struct PendingQueue
+{
+    iVector<int> queue;
+    iMap<int> pos;
+    int point;
+
+    PendingQueue(){
+    }
+    PendingQueue( int n )
+    {
+        point = 0;
+        pos.initialize( n );
+    }
+
+    void clean()
+    {
+        queue.clean();
+        point = 0;
+        pos.clean();
+    }
+
+    void push_back( int x )
+    {
+        pos.insert( x , queue.m_num );
+        queue.push_back( x );
+    }
+
+    int pop()
+    {
+        for ( ; point < queue.m_num ; point++ )
+        {
+            if ( pos.get(queue[point]) == point )
+            {
+                point++;
+                return queue[point-1];
+            }
+        }
+        return -1;
+    }
+};
+
 
 
 static inline string &ltrim(string &s) {
@@ -586,11 +630,11 @@ public:
         }
         for (int i = 0; i < (int) timeUsed.size(); i++) {
             if (timeUsed[i] > 0) {
-                char str[100];
+                char str[1000];
                 sprintf(str, "%.6lf", timeUsed[i] / TIMES_PER_SEC);
                 string s = str;
                 if ((int) s.size() < 15) s = " " + s;
-                char t[100];
+                char t[1000];
                 memset(t, 0, sizeof t);
                 sprintf(t, "%4d %s %s", i, s.c_str(), timeUsedDesc[i].c_str());
                 if (debug) { TRACE(t);

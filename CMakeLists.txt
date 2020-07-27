@@ -3,7 +3,8 @@ project(fora)
 cmake_minimum_required(VERSION 2.8)
 
 #SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -Wall")
-SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -DNDEBUG -w -pthread -lboost_serialization -lboost_filesystem -lboost_system")
+#SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -DNDEBUG -w -pthread -lboost_serialization -lboost_filesystem -lboost_system")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -w  -pthread -lboost_serialization -lboost_filesystem -lboost_system -lboost_date_time")
 #SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -w -pthread")
 
 
@@ -28,4 +29,4 @@ include_directories("${PROJECT_SOURCE_DIR}")
 add_executable(fora ${PROJECT_SOURCE_DIR}/fora.cpp ${PROJECT_SOURCE_DIR}/mylib.cpp ${PROJECT_SOURCE_DIR}/config.cpp)
 #add_executable(HubPPR hubppr.cpp ${PPRLIB} ${HEADER})
 
-target_link_libraries(fora pthread boost_serialization boost_filesystem boost_system)
+target_link_libraries(fora pthread boost_serialization boost_filesystem boost_system boost_date_time)

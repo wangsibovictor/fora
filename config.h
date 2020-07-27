@@ -25,6 +25,8 @@ using namespace boost::property_tree;
 
 
 const double ALPHA_DEFAULT = 0.2;
+const int ALPHA_DENOMINATOR = 5;
+const int ALPHA_NUMERATOR = 1;
 
 const int NUM_OF_QUERY = 20;
 
@@ -52,7 +54,9 @@ const int SOURCE_DIST = 7;
 const int SORT_MAP = 8;
 const int BWD_LU = 9;
 const int PI_QUERY = 10;
+const int STOP_CHECK=11;
 
+const int DEG_NORM = 7;
 const double RG_COST = 1;
 
 // 0.2 for webstanford, 0.15 for dblp, 0.126 for pokec, 0.128 for LP, 0.097 for orkut 
@@ -74,6 +78,8 @@ typedef pair<double, HubBwdidx> HubBwdidxWithResidual;
 // typedef pair<unordered_map<int, double>, unordered_map<int, double>> Bwdidx;
 typedef pair<iMap<double>, iMap<double>> Bwdidx;
 typedef pair<iMap<double>, iMap<double>> Fwdidx;
+typedef iMap<pair<long, long> > IFwdidx;
+
 
 typedef std::vector< std::vector<int> > RwIdx; //random walk idx
 
@@ -95,6 +101,10 @@ public:
     }
     bool multithread = false;
     bool with_rw_idx = false;
+    bool opt = false;
+    bool remap = false;
+    bool force_rebuild = false;
+    bool balanced = false;
     // int num_rw = 10;
 
     double omega; // 1/omega  omega = # of random walk
@@ -114,12 +124,14 @@ public:
 
     double rw_cost_ratio = 8.0;//8.0;
 
-    double rmax_scale = 1.0;
+    double rmax_scale = 1;
     double multithread_param = 1.0;
 
     string algo;
 
     double alpha = ALPHA_DEFAULT;
+    int alpha_numerator = 1;
+    int alpha_denominator = 5;
 
     string exact_pprs_folder;
 
