@@ -114,7 +114,7 @@ $ ./fora build --prefix ./data/ --dataset webstanford --epsilon 0.5
 
 - Example: build index for TODS version.
 ```sh
-$ ./fora build --prefix ./data/ --dataset webstanford --epsilon 0.5
+$ ./fora build --prefix ./data/ --dataset webstanford --epsilon 0.5 --opt
 ```
 
 
@@ -125,18 +125,17 @@ Process queries.
 $ ./fora query --algo <algo-name> --prefix <data-folder> --dataset <graph-name> --result_dir <output-folder> --epsilon <relative error> --query_size <query count> (--opt)
 ```
 
-- Example: Processing query with KDD version.
+- Example:
 
 ```sh
-// without index
+// without index KDD version
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20
 
-// without index, balance strategy and optimization technique in TODS version
+// without index TODS version (balance strategy and optimization technique included)
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --balanced --opt
 
 // with index KDD version
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --with_idx
-```
 
 // with index TODS version
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --with_idx --opt
@@ -156,11 +155,16 @@ $ ./fora topk --algo <algo-name> --prefix <data-folder> --dataset <graph-name> -
 // without index
 $ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500
 
-// without index and optimization technique
+// without index TODS version
 $ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500 --opt
 
-// with index
+// with index KDD version
 $ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500 --with_idx
+
+// with index TODS version
+$ ./fora topk --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --k 500 --with_idx --opt
+
+
 ```
 
 
