@@ -102,35 +102,46 @@ $ ./fora generate-ss-query --prefix ./data/ --dataset webstanford --query_size 1
 Construct index files for the graph data using a single core. (Only for FORA)
 
 ```sh
-$ ./fora build --prefix <data-folder> --dataset <graph-name> --epsilon <relative error>
+$ ./fora build --prefix <data-folder> --dataset <graph-name> --epsilon <relative error> (--opt)
 ```
 Note: the code of indexing for hubppr is not included here, please turn to the code of hubppr: https://sourceforge.net/projects/hubppr/
 
-- Example
+- Example: build index for KDD version.
 
 ```sh
 $ ./fora build --prefix ./data/ --dataset webstanford --epsilon 0.5
 ```
 
+- Example: build index for TODS version.
+```sh
+$ ./fora build --prefix ./data/ --dataset webstanford --epsilon 0.5
+```
+
+
 ## Query
 Process queries.
 
 ```sh
-$ ./fora query --algo <algo-name> --prefix <data-folder> --dataset <graph-name> --result_dir <output-folder> --epsilon <relative error> --query_size <query count>
+$ ./fora query --algo <algo-name> --prefix <data-folder> --dataset <graph-name> --result_dir <output-folder> --epsilon <relative error> --query_size <query count> (--opt)
 ```
 
-- Example:
+- Example: Processing query with KDD version.
 
 ```sh
 // without index
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20
 
-// without index, balance strategy and optimization technique
+// without index, balance strategy and optimization technique in TODS version
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --balanced --opt
 
-// with index
+// with index KDD version
 $ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --with_idx
 ```
+
+// with index TODS version
+$ ./fora query --algo fora --prefix ./data/ --dataset webstanford --epsilon 0.5 --query_size 20 --with_idx --opt
+```
+
 
 ## Top-K
 Process top-k queries.
