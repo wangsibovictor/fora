@@ -8,7 +8,7 @@ SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -w  -pthread -lboost_serialization -lboost_f
 #SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -w -pthread")
 
 
-find_package(Boost REQUIRED  unit_test_framework filesystem system date_time program_options)
+find_package(Boost REQUIRED filesystem system date_time program_options)
 #find_package(Threads)
 
 #set(HEADER algo.h build_oracle.h config.h graph.h head.h heap.h mylib.h query.h)
