@@ -43,7 +43,7 @@ Plase cite our papers if you choose to use our code.
 - Ubuntu
 - C++ 11
 - GCC 4.8
-- Boost
+- Boost (Boost 1.65 on our machine)
 - cmake
 
 ## Compile
